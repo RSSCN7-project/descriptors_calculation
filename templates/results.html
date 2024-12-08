@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Similar Images Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .results-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+        .image-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            width: 250px;
+        }
+        .image-card img {
+            max-width: 100%;
+            max-height: 250px;
+            object-fit: cover;
+        }
+        .query-image {
+            max-width: 400px;
+            margin-bottom: 20px;
+            border: 3px solid #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <h2>Similar Images</h2>
+    <h3>Query Image</h3>
+    <img src="{{ url_for('uploaded_file', filename=query_image) }}" class="query-image" alt="Query Image">
+    
+    <h3>Top Similar Images</h3>
+    <div class="results-container">
+        {% for image in similar_images %}
+        <div class="image-card">
+            {% if image.image_path %}
+            <img src="{{ image.image_path }}" alt="{{ image.image_name }}">
+            <p>Category: {{ image.category }}</p>
+            <p>Similarity Score: {{ "%.4f"|format(image.similarity_score) }}</p>
+            {% else %}
+            <p>Image not found locally: {{ image.image_name }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <br>
+    <a href="/" style="text-decoration: none; background-color: #4CAF50; color: white; padding: 10px 20px; border-radius: 5px;">Back to Upload</a>
+</body>
+</html>

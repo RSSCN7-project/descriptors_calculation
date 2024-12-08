@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Similarity Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .upload-container {
+            background-color: #f4f4f4;
+            border: 2px dashed #ccc;
+            border-radius: 20px;
+            padding: 30px;
+            margin-top: 50px;
+        }
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="upload-container">
+        <h2>Image Similarity Search</h2>
+        {% if error %}
+            <p style="color: red;">{{ error }}</p>
+        {% endif %}
+        <form method="POST" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".jpg,.jpeg,.png" required>
+            <br>
+            <input type="submit" value="Find Similar Images">
+        </form>
+    </div>
+</body>
+</html>

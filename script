@@ -1,0 +1,25 @@
+import pymongo
+import json
+
+# MongoDB connection
+client = pymongo.MongoClient("mongodb://localhost:27017")  # Replace with your connection string
+db = client['image_database']  # Database name
+collection = db['image_descriptors2']  # Collection name
+
+# Load descriptors from JSON
+with open("image_descriptors2.json", "r") as json_file:
+    descriptor_data = json.load(json_file)
+
+# Insert descriptors into MongoDB
+for category, images in descriptor_data.items():
+    for img_name, descriptors in images.items():
+        # Prepare document structure for MongoDB
+        document = {
+            "category": category,
+            "image_name": img_name,
+            **descriptors  # Flatten descriptors into the document
+        }
+        # Insert into MongoDB
+        collection.insert_one(document)
+
+print("Descriptors saved to MongoDB successfully!")
