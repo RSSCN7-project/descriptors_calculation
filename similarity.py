@@ -36,5 +36,5 @@ def compute_similarity_score(query_descriptors, database_descriptors):
 
     # Weighted combination of distances
     # Lower total distance means more similar
-    return 0.3 * hist_dist + 0.2 * color_dist + 0.2 * gabor_dist + \
-           0.1 * hu_dist + 0.1 * te_dist + 0.1 * ci_dist
+    return 0.3 * hist_dist + 0.1 * color_dist + 0.2 * gabor_dist + \
+           0.1 * hu_dist + 0.395 * te_dist + 0.005 * ci_dist

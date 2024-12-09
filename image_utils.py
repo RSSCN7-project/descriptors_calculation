@@ -38,17 +38,19 @@ def calculate_gabor_descriptors(image_path):
             filtered_img = cv2.filter2D(img, cv2.CV_8UC3, kernel)
             responses.append(np.mean(filtered_img))
     responses = np.array(responses)
-    return (responses - np.min(responses)) / (np.max(responses) - np.min(responses))  # Min-max normalization
+    epsilon = 1e-10
+    return (responses - np.min(responses)) / (np.max(responses) - np.min(responses)+epsilon)  # Min-max normalization
 
 def calculate_hu_moments(image_path):
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     moments = cv2.moments(img)
     hu_moments = cv2.HuMoments(moments).flatten()
     hu_moments = -np.sign(hu_moments) * np.log10(np.abs(hu_moments))  # Log transform for scale invariance
-    hu_moments = (hu_moments - np.min(hu_moments)) / (np.max(hu_moments) - np.min(hu_moments))  # Min-max normalization
+    epsilon = 1e-10
+    hu_moments = (hu_moments - np.min(hu_moments)) / (np.max(hu_moments) - np.min(hu_moments) + epsilon)  # Min-max normalization
     return hu_moments.tolist()
 
-def calculate_texture_energy(image_path):
+def calculate_texture_energy(image_path): 
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     energy = []
     for angle in [0, np.pi/4, np.pi/2, 3*np.pi/4]:  # Different orientations
