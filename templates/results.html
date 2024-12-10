@@ -31,6 +31,21 @@
             margin-bottom: 20px;
             border: 3px solid #4CAF50;
         }
+        .feedback-dropdown {
+            margin-top: 10px;
+        }
+        .feedback-submit {
+            margin-top: 10px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #feedback-message {
+            margin-top: 20px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -39,20 +54,93 @@
     <img src="{{ url_for('uploaded_file', filename=query_image) }}" class="query-image" alt="Query Image">
     
     <h3>Top Similar Images</h3>
-    <div class="results-container">
+    <div class="results-container" id="results-container">
         {% for image in similar_images %}
-        <div class="image-card">
+        <div class="image-card" data-image-name="{{ image.image_name }}" data-category="{{ image.category }}">
             {% if image.image_path %}
             <img src="{{ image.image_path }}" alt="{{ image.image_name }}">
             <p>Category: {{ image.category }}</p>
             <p>Similarity Score: {{ "%.4f"|format(image.similarity_score) }}</p>
+            
+            <select class="feedback-dropdown">
+                <option value="neutral" selected>Neutre</option>
+                <option value="irrelevant">Irrelevant</option>
+                <option value="relevant">Relevant</option>
+            </select>
             {% else %}
             <p>Image not found locally: {{ image.image_name }}</p>
             {% endif %}
         </div>
         {% endfor %}
     </div>
+
+    <div id="feedback-message"></div>
+    <button id="submit-feedback" class="feedback-submit">Submit Feedback</button>
     <br>
-    <a href="/" style="text-decoration: none; background-color: #4CAF50; color: white; padding: 10px 20px; border-radius: 5px;">Back to Upload</a>
+    <a href="/" style="display: inline-block; margin-top: 20px; text-decoration: none; background-color: #4CAF50; color: white; padding: 10px 20px; border-radius: 5px;">Back to Upload</a>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const submitButton = document.getElementById('submit-feedback');
+            const feedbackMessage = document.getElementById('feedback-message');
+
+            // Store query descriptors passed from the server
+            const queryDescriptors = window.queryDescriptors || []; // Ensure queryDescriptors is available
+
+            submitButton.addEventListener('click', function () {
+                // Collect feedback for each image
+                const feedbackItems = [];
+                const imageCards = document.querySelectorAll('.image-card');
+
+                imageCards.forEach(card => {
+                    const dropdown = card.querySelector('.feedback-dropdown');
+                    const feedback = dropdown ? dropdown.value : null;
+
+                    if (feedback) {
+                        feedbackItems.push({
+                            image_name: card.dataset.imageName || '', // Safeguard against undefined
+                            category: card.dataset.category || '', // Safeguard against undefined
+                            feedback: feedback,
+                            descriptors: null // Placeholder for image descriptors
+                        });
+                    }
+                });
+
+                // Check if any feedback was selected
+                if (feedbackItems.length === 0) {
+                    feedbackMessage.textContent = 'Please select feedback for at least one image.';
+                    feedbackMessage.style.color = 'red';
+                    return;
+                }
+
+                // Send feedback to server
+                fetch('/submit_feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query_descriptors: queryDescriptors,
+                        feedback_items: feedbackItems
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        feedbackMessage.textContent = 'Feedback submitted successfully! Weights updated.';
+                        feedbackMessage.style.color = 'green';
+                    } else {
+                        feedbackMessage.textContent = 'Error submitting feedback.';
+                        feedbackMessage.style.color = 'red';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    feedbackMessage.textContent = 'Error submitting feedback.';
+                    feedbackMessage.style.color = 'red';
+                });
+            });
+        });
+    </script>
 </body>
 </html>

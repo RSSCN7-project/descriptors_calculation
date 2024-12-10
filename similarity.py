@@ -22,19 +22,36 @@ def texture_energy_distance(te1, te2):
 def circularity_distance(ci1, ci2):
     return np.linalg.norm(np.array(ci1) - np.array(ci2))
 
-def compute_similarity_score(query_descriptors, database_descriptors):
+def compute_similarity_score(query_descriptors, database_descriptors, weights=None):
     """
-    Compute similarity score between two sets of descriptors.
-    Lower score means more similar.
+    Compute similarity score between two sets of descriptors with optional custom weights.
+    
+    :param query_descriptors: Descriptors of query image
+    :param database_descriptors: Descriptors of database image
+    :param weights: Dictionary of feature weights (optional)
+    :return: Weighted similarity score
     """
-    hist_dist = bhattacharyya_distance(query_descriptors["histogram"], database_descriptors["histogram"])
-    color_dist = dominant_color_distance(query_descriptors["dominant_colors"], database_descriptors["dominant_colors"])
-    gabor_dist = gabor_distance(query_descriptors["gabor_descriptors"], database_descriptors["gabor_descriptors"])
-    hu_dist = hu_moments_distance(query_descriptors["hu_moments"], database_descriptors["hu_moments"])
-    te_dist = texture_energy_distance(query_descriptors["texture_energy"], database_descriptors["texture_energy"])
-    ci_dist = circularity_distance(query_descriptors["circularity"], database_descriptors["circularity"])
-
-    # Weighted combination of distances
+    # Default weights if not provided
+    if weights is None:
+        weights = {
+            "histogram": 0.3,
+            "dominant_colors": 0.1,
+            "gabor_descriptors": 0.2,
+            "hu_moments": 0.1,
+            "texture_energy": 0.395,
+            "circularity": 0.005
+        }
+    
+    # Compute individual feature distances
+    distances = {
+        "histogram": bhattacharyya_distance(query_descriptors["histogram"], database_descriptors["histogram"]),
+        "dominant_colors": dominant_color_distance(query_descriptors["dominant_colors"], database_descriptors["dominant_colors"]),
+        "gabor_descriptors": gabor_distance(query_descriptors["gabor_descriptors"], database_descriptors["gabor_descriptors"]),
+        "hu_moments": hu_moments_distance(query_descriptors["hu_moments"], database_descriptors["hu_moments"]),
+        "texture_energy": texture_energy_distance(query_descriptors["texture_energy"], database_descriptors["texture_energy"]),
+        "circularity": circularity_distance(query_descriptors["circularity"], database_descriptors["circularity"])
+    }
+    
+    # Compute weighted similarity score
     # Lower total distance means more similar
-    return 0.3 * hist_dist + 0.1 * color_dist + 0.2 * gabor_dist + \
-           0.1 * hu_dist + 0.395 * te_dist + 0.005 * ci_dist
+    return sum(weights[feature] * distances[feature] for feature in distances)
