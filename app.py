@@ -118,6 +118,17 @@ def upload_file():
     
     return render_template('index.html')
 
+@app.route('/refresh_results', methods=['POST'])
+def refresh_results():
+    data = request.json
+    query_descriptors = data['query_descriptors']
+    weights = data.get('weights', None)  # Obtenir les poids s'ils sont fournis
+
+    # Trouver des images similaires avec les nouveaux poids
+    matches = find_similar_images(query_descriptors, weights=weights)
+    
+    return jsonify(matches)
+
 def find_similar_images(query_descriptors, top_k=10, weights=None):
     # If no specific weights provided, use default
     if weights is None:

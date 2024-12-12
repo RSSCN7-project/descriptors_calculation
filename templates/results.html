@@ -80,15 +80,39 @@
     <a href="/" style="display: inline-block; margin-top: 20px; text-decoration: none; background-color: #4CAF50; color: white; padding: 10px 20px; border-radius: 5px;">Back to Upload</a>
 
     <script>
+        // Store query descriptors passed from the server
+        const queryDescriptors = JSON.parse('{{ query_descriptors|safe }}');
+
+        function updateResults(newResults) {
+            const container = document.getElementById('results-container');
+            container.innerHTML = ''; // Clear current results
+            
+            newResults.forEach(image => {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.dataset.imageName = image.image_name;
+                card.dataset.category = image.category;
+                
+                card.innerHTML = `
+                    <img src="${image.image_path}" alt="${image.image_name}">
+                    <p>Category: ${image.category}</p>
+                    <p>Similarity Score: ${image.similarity_score.toFixed(4)}</p>
+                    <select class="feedback-dropdown">
+                        <option value="neutral" selected>Neutre</option>
+                        <option value="irrelevant">Irrelevant</option>
+                        <option value="relevant">Relevant</option>
+                    </select>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             const submitButton = document.getElementById('submit-feedback');
             const feedbackMessage = document.getElementById('feedback-message');
 
-            // Store query descriptors passed from the server
-            const queryDescriptors = window.queryDescriptors || []; // Ensure queryDescriptors is available
-
             submitButton.addEventListener('click', function () {
-                // Collect feedback for each image
                 const feedbackItems = [];
                 const imageCards = document.querySelectorAll('.image-card');
 
@@ -98,15 +122,14 @@
 
                     if (feedback) {
                         feedbackItems.push({
-                            image_name: card.dataset.imageName || '', // Safeguard against undefined
-                            category: card.dataset.category || '', // Safeguard against undefined
+                            image_name: card.dataset.imageName || '',
+                            category: card.dataset.category || '',
                             feedback: feedback,
-                            descriptors: null // Placeholder for image descriptors
+                            descriptors: null
                         });
                     }
                 });
 
-                // Check if any feedback was selected
                 if (feedbackItems.length === 0) {
                     feedbackMessage.textContent = 'Please select feedback for at least one image.';
                     feedbackMessage.style.color = 'red';
@@ -127,12 +150,28 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        feedbackMessage.textContent = 'Feedback submitted successfully! Weights updated.';
+                        feedbackMessage.textContent = 'Feedback submitted successfully! Updating results...';
                         feedbackMessage.style.color = 'green';
+                        
+                        // Refresh results with new weights
+                        return fetch('/refresh_results', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                query_descriptors: queryDescriptors,
+                                weights: data.new_weights
+                            })
+                        });
                     } else {
-                        feedbackMessage.textContent = 'Error submitting feedback.';
-                        feedbackMessage.style.color = 'red';
+                        throw new Error('Feedback submission failed');
                     }
+                })
+                .then(response => response.json())
+                .then(newResults => {
+                    updateResults(newResults);
+                    feedbackMessage.textContent = 'Results updated with new weights!';
                 })
                 .catch(error => {
                     console.error('Error:', error);
