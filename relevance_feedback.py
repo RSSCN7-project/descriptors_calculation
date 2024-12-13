@@ -123,21 +123,25 @@ class RelevanceFeedbackManager:
         except Exception:
             return 0
 
-    def _normalize_weights(self, weights):
+    def _normalize_weights(self, weights, min_threshold=0.05):
         """
-        Normalize weights to ensure they sum to 1 and are non-negative
+        Normalize weights to ensure they sum to 1, are non-negative,
+        and are above a minimum threshold.
         
         :param weights: Dictionary of feature weights to normalize
+        :param min_threshold: Minimum allowable weight for any feature
         """
-        # Ensure non-negative weights
+        # Ensure all weights are above the minimum threshold
         for feature in weights:
-            weights[feature] = max(0, weights[feature])
+            if weights[feature] < min_threshold:
+                weights[feature] = min_threshold
         
-        # Normalize to sum to 1
+        # Normalize weights to sum to 1
         total = sum(weights.values())
         if total > 0:
             for feature in weights:
                 weights[feature] /= total
+
 
     def save_feedback_history(self):
         """

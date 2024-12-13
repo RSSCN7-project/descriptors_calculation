@@ -1,8 +1,8 @@
 {
-    "histogram": 0.40489496285662946,
-    "dominant_colors": 0.5951050371433705,
-    "gabor_descriptors": 0.0,
-    "hu_moments": 0.0,
-    "texture_energy": 0.0,
-    "circularity": 0.0
+    "histogram": 0.42501608535068536,
+    "dominant_colors": 0.2720780537506117,
+    "gabor_descriptors": 0.07572646522467569,
+    "hu_moments": 0.07572646522467569,
+    "texture_energy": 0.07572646522467569,
+    "circularity": 0.07572646522467569
 }

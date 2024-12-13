@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial import distance
 import cv2
+import json 
 
 def bhattacharyya_distance(hist1, hist2):
     return sum(cv2.compareHist(np.array(hist1[color], dtype=np.float32),
@@ -28,14 +29,21 @@ def circularity_distance(ci1, ci2):
 
 def compute_similarity_score(query_descriptors, database_descriptors, weights=None):
     """
-    Compute similarity score between two sets of descriptors with optional custom weights.
+    Compute similarity score between two sets of descriptors with optional custom weights loaded from a JSON file.
     
     :param query_descriptors: Descriptors of query image
     :param database_descriptors: Descriptors of database image
-    :param weights: Dictionary of feature weights (optional)
+    :param weights: Dictionary of feature weights (optional, overrides JSON if provided)
+    :param weights_json_path: Path to the JSON file containing weights (optional)
     :return: Weighted similarity score
     """
-    # Default weights if not provided
+    weights_json_path='weights_config.json'
+    # Load weights from JSON if no weights are provided
+    if weights is None and weights_json_path:
+        with open(weights_json_path, 'r') as f:
+            weights = json.load(f)
+    
+    # Fallback default weights if neither weights nor weights_json_path are provided
     if weights is None:
         weights = {
             "histogram": 0.3,
@@ -57,5 +65,4 @@ def compute_similarity_score(query_descriptors, database_descriptors, weights=No
     }
     
     # Compute weighted similarity score
-    # Lower total distance means more similar
     return sum(weights[feature] * distances[feature] for feature in distances)
