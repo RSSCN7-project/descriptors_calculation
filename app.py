@@ -41,6 +41,7 @@ def uploaded_file(filename):
 
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
+    # Parse incoming feedback data
     feedback_data = request.json
     
     # Enrich feedback items with descriptors from the database
@@ -54,24 +55,103 @@ def submit_feedback():
         if doc:
             # Populate descriptors from the database document
             item['descriptors'] = {
-                "histogram": doc['histogram'],
-                "dominant_colors": doc['dominant_colors'],
-                "gabor_descriptors": doc['gabor_descriptors'],
-                "hu_moments": doc['hu_moments'],
-                "texture_energy": doc['texture_energy'],
-                "circularity": doc['circularity']
+                "histogram": doc.get('histogram', []),
+                "dominant_colors": doc.get('dominant_colors', []),
+                "gabor_descriptors": doc.get('gabor_descriptors', []),
+                "hu_moments": doc.get('hu_moments', []),
+                "texture_energy": doc.get('texture_energy', []),
+                "circularity": doc.get('circularity', [])
             }
     
-    # Process feedback
-    weights = feedback_manager.update_weights(
-        query_descriptors=feedback_data['query_descriptors'], 
-        feedback_data=feedback_data['feedback_items']
+    # Process feedback and get updated weights
+    try:
+        new_weights = feedback_manager.update_weights(
+            query_descriptors=feedback_data['query_descriptors'], 
+            feedback_data=feedback_data['feedback_items']
+        )
+        
+        # Find similar images with the new weights
+        matches = find_similar_images(
+            query_descriptors=feedback_data['query_descriptors'], 
+            weights=new_weights
+        )
+        
+        # Persist the new weights
+        feedback_manager.save_feedback_history()
+        
+        return jsonify({
+            "status": "success", 
+            "new_weights": new_weights,
+            "similar_images": matches
+        })
+    
+    except Exception as e:
+        print(f"Error processing feedback: {e}")
+        return jsonify({
+            "status": "error", 
+            "message": str(e)
+        }), 500
+
+@app.route('/refresh_results', methods=['POST'])
+def refresh_results():
+    # Get data from request
+    data = request.json
+    query_descriptors = data.get('query_descriptors')
+    weights = data.get('weights')
+
+    if not query_descriptors:
+        return jsonify({"status": "error", "message": "No query descriptors provided"}), 400
+
+    # Find similar images with the provided or default weights
+    matches = find_similar_images(
+        query_descriptors=query_descriptors, 
+        weights=weights
     )
     
-    # Persist the new weights
-    feedback_manager.save_feedback_history()
+    return jsonify({
+        "status": "success",
+        "similar_images": matches
+    })
+
+def find_similar_images(query_descriptors, top_k=10, weights=None):
+    # If no specific weights provided, use default
+    if weights is None:
+        weights = feedback_manager.current_weights
     
-    return jsonify({"status": "success", "new_weights": weights})
+    # Fetch all descriptors from MongoDB
+    all_descriptors = list(descriptors_collection.find())
+    similarities = []
+
+    for doc in all_descriptors:
+        try:
+            similarity_score = compute_similarity_score(
+                query_descriptors,
+                {
+                    "histogram": doc.get('histogram', []),
+                    "dominant_colors": doc.get('dominant_colors', []),
+                    "gabor_descriptors": doc.get('gabor_descriptors', []),
+                    "hu_moments": doc.get('hu_moments', []),
+                    "texture_energy": doc.get('texture_energy', []),
+                    "circularity": doc.get('circularity', []),
+                },
+                weights  # Pass custom weights
+            )
+            similarities.append({
+                'category': doc['category'],
+                'image_name': doc['image_name'],
+                'similarity_score': similarity_score
+            })
+        except Exception as e:
+            print(f"Error processing descriptor for {doc.get('image_name')}: {e}")
+
+    # Sort by similarity score (lower score means more similar)
+    similarities = sorted(similarities, key=lambda x: x['similarity_score'])[:top_k]
+
+    # Resolve local file paths for each similar image
+    for sim in similarities:
+        sim['image_path'] = f"/static/dataset/{sim['category']}/{sim['image_name']}"
+        
+    return similarities
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -115,57 +195,7 @@ def upload_file():
                        similar_images=matches,
                        query_descriptors=json.dumps(query_descriptors))  # Pass as JSON string
 
-    
     return render_template('index.html')
-
-@app.route('/refresh_results', methods=['POST'])
-def refresh_results():
-    data = request.json
-    query_descriptors = data['query_descriptors']
-    weights = data.get('weights', None)  # Obtenir les poids s'ils sont fournis
-
-    # Trouver des images similaires avec les nouveaux poids
-    matches = find_similar_images(query_descriptors, weights=weights)
-    
-    return jsonify(matches)
-
-def find_similar_images(query_descriptors, top_k=10, weights=None):
-    # If no specific weights provided, use default
-    if weights is None:
-        weights = feedback_manager.default_weights
-    
-    # Fetch all descriptors from MongoDB
-    all_descriptors = list(descriptors_collection.find())
-    similarities = []
-
-    for doc in all_descriptors:
-        similarity_score = compute_similarity_score(
-            query_descriptors,
-            {
-                "histogram": doc['histogram'],
-                "dominant_colors": doc['dominant_colors'],
-                "gabor_descriptors": doc['gabor_descriptors'],
-                "hu_moments": doc['hu_moments'],
-                "texture_energy": doc['texture_energy'],
-                "circularity": doc['circularity'],
-            },
-            weights  # Pass custom weights
-        )
-        similarities.append({
-            'category': doc['category'],
-            'image_name': doc['image_name'],
-            'similarity_score': similarity_score
-        })
-
-    # Sort by similarity score and take the top K results
-    similarities = sorted(similarities, key=lambda x: x['similarity_score'])[:top_k]
-
-    # Resolve local file paths for each similar image
-    base_dataset_folder = os.path.join('static', 'dataset')
-    for sim in similarities:
-        sim['image_path'] = f"/static/dataset/{sim['category']}/{sim['image_name']}"
-        
-    return similarities
 
 if __name__ == '__main__':
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)

@@ -8,6 +8,10 @@ def bhattacharyya_distance(hist1, hist2):
                                cv2.HISTCMP_BHATTACHARYYA) for color in ("b", "g", "r"))
 
 def dominant_color_distance(colors1, colors2):
+    # Pad or truncate to match the same number of dominant colors
+    max_len = max(len(colors1), len(colors2))
+    colors1 = np.pad(colors1, ((0, max_len - len(colors1)), (0, 0)), mode='constant')[:max_len]
+    colors2 = np.pad(colors2, ((0, max_len - len(colors2)), (0, 0)), mode='constant')[:max_len]
     return distance.cdist(np.array(colors1), np.array(colors2), 'euclidean').mean()
 
 def gabor_distance(gabor1, gabor2):

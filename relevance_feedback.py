@@ -1,112 +1,155 @@
-import numpy as np
 import json
 import os
+import numpy as np
 
 class RelevanceFeedbackManager:
-    def __init__(self):
-        # Default feature weights
-        self.default_weights = {
-            "histogram": 0.3,
-            "dominant_colors": 0.1,
-            "gabor_descriptors": 0.2,
-            "hu_moments": 0.1,
-            "texture_energy": 0.395,
-            "circularity": 0.005
-        }
+    def __init__(self, weights_file='weights_config.json', learning_rate=0.1):
+        """
+        Initialize the Relevance Feedback Manager
+        
+        :param weights_file: Path to store/load feature weights
+        :param learning_rate: Learning rate for weight updates
+        """
+        self.weights_file = weights_file
+        self.learning_rate = learning_rate
+        
+        
+        
+        # Load existing weights or use defaults
+        self.current_weights = self.load_weights()
+        
+        # History to track weight changes
+        self.weights_history = []
 
-        # Feedback file to persist learning
-        self.feedback_file = 'user_feedback.json'
-        self.feedback_history = self.load_feedback_history()
+    def load_weights(self):
+        """
+        Load weights from a JSON file or return default weights
+        
+        :return: Dictionary of feature weights
+        """
+        try:
+            if os.path.exists(self.weights_file):
+                with open(self.weights_file, 'r') as f:
+                    return json.load(f)
+            return self.default_weights.copy()
+        except (FileNotFoundError, json.JSONDecodeError):
+            return self.default_weights.copy()
 
-    def load_feedback_history(self):
-        """Load previous feedback history."""
-        if os.path.exists(self.feedback_file):
-            with open(self.feedback_file, 'r') as f:
-                return json.load(f)
-        return {}
-
-    def save_feedback_history(self):
-        """Save feedback history to file."""
-        with open(self.feedback_file, 'w') as f:
-            json.dump(self.feedback_history, f, indent=4)
+    def save_weights(self, weights):
+        """
+        Save weights to a JSON file
+        
+        :param weights: Dictionary of feature weights to save
+        """
+        with open(self.weights_file, 'w') as f:
+            json.dump(weights, f, indent=4)
 
     def update_weights(self, query_descriptors, feedback_data):
         """
-        Update feature weights based on user feedback.
-        :param query_descriptors: Descriptors of the query image.
-        :param feedback_data: List of feedback for images with their descriptors.
-        :return: Updated feature weights.
+        Update feature weights based on user feedback
+        
+        :param query_descriptors: Descriptors of the query image
+        :param feedback_data: List of feedback items with image details and feedback
+        :return: Updated weights dictionary
         """
-        current_weights = self.default_weights.copy()
+        # Create a copy of current weights to modify
+        updated_weights = self.current_weights.copy()
+        
+        # Track total adjustments to ensure weights remain normalized
+        total_adjustment = 0
+        feature_adjustments = {feature: 0 for feature in updated_weights}
+        
+        # Process each feedback item
+        for item in feedback_data:
+            # Skip items marked as 'neutral'
+            if item['feedback'] == 'neutral':
+                continue
+            
+            # Compute adjustment direction and magnitude
+            if item['feedback'] == 'relevant':
+                # Increase weights of features that helped find relevant images
+                adjustment = self.learning_rate
+            elif item['feedback'] == 'irrelevant':
+                # Decrease weights of features that led to irrelevant results
+                adjustment = -self.learning_rate
+            
+            # You could add more sophisticated weight update logic here
+            # For now, we'll do a simple linear adjustment
+            for feature in updated_weights:
+                # Small adjustment based on feature consistency
+                feature_adjustment = adjustment * self._compute_feature_contribution(
+                    query_descriptors, 
+                    item.get('descriptors', {}), 
+                    feature
+                )
+                feature_adjustments[feature] += feature_adjustment
+                total_adjustment += abs(feature_adjustment)
+        
+        # Apply adjustments to weights
+        for feature in updated_weights:
+            updated_weights[feature] += feature_adjustments[feature]
+        
+        # Normalize weights to ensure they sum to 1
+        self._normalize_weights(updated_weights)
+        
+        # Save updated weights
+        self.save_weights(updated_weights)
+        
+        # Update current weights and history
+        self.current_weights = updated_weights
+        self.weights_history.append(updated_weights.copy())
+        
+        return updated_weights
 
-        # Separate feedback into relevant, neutral, and irrelevant
-        relevant_images = [item for item in feedback_data if item['feedback'] == 'relevant']
-        neutral_images = [item for item in feedback_data if item['feedback'] == 'neutral']
-        irrelevant_images = [item for item in feedback_data if item['feedback'] == 'irrelevant']
-
-        # If no feedback is provided, return default weights
-        if not relevant_images and not irrelevant_images:
-            return current_weights
-
-        # Compute feature variations using irrelevant feedback
-        feature_variations = {}
-        for feature in self.default_weights.keys():
-            feature_variations[feature] = self._compute_feature_variation(relevant_images, irrelevant_images, feature)
-
-        # Normalize and update weights based on irrelevant feedback
-        total_variation = sum(abs(var) for var in feature_variations.values())
-        if total_variation > 0:
-            for feature, variation in feature_variations.items():
-                # Reduce weights influenced by irrelevant feedback
-                adjustment = -(variation / total_variation) if variation < 0 else 0
-                current_weights[feature] = max(0.01, current_weights[feature] + adjustment)
-
-        # Ensure weights remain normalized
-        total_weight = sum(current_weights.values())
-        current_weights = {k: v / total_weight for k, v in current_weights.items()}
-
-        return current_weights
-
-    def _compute_feature_variation(self, relevant_images, irrelevant_images, feature_name):
+    def _compute_feature_contribution(self, query_descriptors, image_descriptors, feature):
         """
-        Compute variation of a specific feature between relevant and irrelevant images.
-
-        :param relevant_images: List of relevant image descriptors.
-        :param irrelevant_images: List of irrelevant image descriptors.
-        :param feature_name: Name of the feature to analyze.
-        :return: Variation score.
+        Compute a simple contribution score for a specific feature
+        
+        :param query_descriptors: Descriptors of query image
+        :param image_descriptors: Descriptors of compared image
+        :param feature: Feature name to compute contribution for
+        :return: Contribution score
         """
-        def compute_mean_feature(images):
-            """
-            Compute the mean feature vector for a list of images.
-
-            :param images: List of image descriptors.
-            :return: Mean feature vector or None if no valid features are found.
-            """
-            features = [
-                np.array(img['descriptors'][feature_name])
-                for img in images if 'descriptors' in img and feature_name in img['descriptors']
-            ]
-
-            if len(features) == 0:
-                return None
-
-            # Attempt to stack and compute mean
-            try:
-                features = np.array(features)
-                if features.ndim == 2:  # Ensure it's a 2D array
-                    return np.mean(features, axis=0)
-            except ValueError:
-                print(f"Inconsistent descriptor shapes for feature: {feature_name}")
-            return None
-
-        # Compute means for relevant and irrelevant images
-        relevant_mean = compute_mean_feature(relevant_images)
-        irrelevant_mean = compute_mean_feature(irrelevant_images)
-
-        # If no valid data is found, return 0
-        if relevant_mean is None or irrelevant_mean is None:
+        # Placeholder for feature-specific contribution computation
+        # In a real-world scenario, you'd implement more sophisticated logic
+        try:
+            if feature in query_descriptors and feature in image_descriptors:
+                # Simple magnitude difference as a proxy for contribution
+                return np.linalg.norm(
+                    np.array(query_descriptors[feature]) - 
+                    np.array(image_descriptors[feature])
+                )
+            return 0
+        except Exception:
             return 0
 
-        # Compute variation (norm of the difference between means)
-        return np.linalg.norm(relevant_mean - irrelevant_mean)
+    def _normalize_weights(self, weights):
+        """
+        Normalize weights to ensure they sum to 1 and are non-negative
+        
+        :param weights: Dictionary of feature weights to normalize
+        """
+        # Ensure non-negative weights
+        for feature in weights:
+            weights[feature] = max(0, weights[feature])
+        
+        # Normalize to sum to 1
+        total = sum(weights.values())
+        if total > 0:
+            for feature in weights:
+                weights[feature] /= total
+
+    def save_feedback_history(self):
+        """
+        Save the history of weight updates to a file
+        """
+        history_file = 'weights_history.json'
+        with open(history_file, 'w') as f:
+            json.dump(self.weights_history, f, indent=4)
+
+    def reset_weights(self):
+        """
+        Reset weights to default configuration
+        """
+        self.current_weights = self.default_weights.copy()
+        self.save_weights(self.current_weights)

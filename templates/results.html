@@ -56,14 +56,16 @@
     <h3>Top Similar Images</h3>
     <div class="results-container" id="results-container">
         {% for image in similar_images %}
-        <div class="image-card" data-image-name="{{ image.image_name }}" data-category="{{ image.category }}">
+        <div class="image-card" 
+             data-image-name="{{ image.image_name }}" 
+             data-category="{{ image.category }}">
             {% if image.image_path %}
             <img src="{{ image.image_path }}" alt="{{ image.image_name }}">
             <p>Category: {{ image.category }}</p>
-            <p>Similarity Score: {{ "%.4f"|format(image.similarity_score) }}</p>
+            <p class="similarity-score">Similarity Score: {{ "%.4f"|format(image.similarity_score) }}</p>
             
             <select class="feedback-dropdown">
-                <option value="neutral" selected>Neutre</option>
+                <option value="neutral" selected>Neutral</option>
                 <option value="irrelevant">Irrelevant</option>
                 <option value="relevant">Relevant</option>
             </select>
@@ -80,106 +82,94 @@
     <a href="/" style="display: inline-block; margin-top: 20px; text-decoration: none; background-color: #4CAF50; color: white; padding: 10px 20px; border-radius: 5px;">Back to Upload</a>
 
     <script>
-        // Store query descriptors passed from the server
-        const queryDescriptors = JSON.parse('{{ query_descriptors|safe }}');
+        document.addEventListener('DOMContentLoaded', function() {
+    const submitButton = document.getElementById('submit-feedback');
+    const resultsContainer = document.getElementById('results-container');
+    const feedbackMessage = document.getElementById('feedback-message');
+    const queryDescriptors = JSON.parse('{{ query_descriptors | safe }}');
 
-        function updateResults(newResults) {
-            const container = document.getElementById('results-container');
-            container.innerHTML = ''; // Clear current results
-            
-            newResults.forEach(image => {
-                const card = document.createElement('div');
-                card.className = 'image-card';
-                card.dataset.imageName = image.image_name;
-                card.dataset.category = image.category;
-                
-                card.innerHTML = `
-                    <img src="${image.image_path}" alt="${image.image_name}">
-                    <p>Category: ${image.category}</p>
-                    <p>Similarity Score: ${image.similarity_score.toFixed(4)}</p>
-                    <select class="feedback-dropdown">
-                        <option value="neutral" selected>Neutre</option>
-                        <option value="irrelevant">Irrelevant</option>
-                        <option value="relevant">Relevant</option>
-                    </select>
-                `;
-                
-                container.appendChild(card);
-            });
-        }
+    // Function to update results
+    function updateResults(similarImages) {
+        // Clear existing results
+        resultsContainer.innerHTML = '';
 
-        document.addEventListener('DOMContentLoaded', function () {
-            const submitButton = document.getElementById('submit-feedback');
-            const feedbackMessage = document.getElementById('feedback-message');
+        // Render new similar images
+        similarImages.forEach(image => {
+            const imageCard = document.createElement('div');
+            imageCard.className = 'image-card';
+            imageCard.dataset.imageName = image.image_name;
+            imageCard.dataset.category = image.category;
 
-            submitButton.addEventListener('click', function () {
-                const feedbackItems = [];
-                const imageCards = document.querySelectorAll('.image-card');
+            imageCard.innerHTML = `
+                <img src="${image.image_path}" alt="${image.image_name}">
+                <p>Category: ${image.category}</p>
+                <p class="similarity-score">Similarity Score: ${image.similarity_score.toFixed(4)}</p>
+                <select class="feedback-dropdown">
+                    <option value="neutral" selected>Neutral</option>
+                    <option value="irrelevant">Irrelevant</option>
+                    <option value="relevant">Relevant</option>
+                </select>
+            `;
 
-                imageCards.forEach(card => {
-                    const dropdown = card.querySelector('.feedback-dropdown');
-                    const feedback = dropdown ? dropdown.value : null;
-
-                    if (feedback) {
-                        feedbackItems.push({
-                            image_name: card.dataset.imageName || '',
-                            category: card.dataset.category || '',
-                            feedback: feedback,
-                            descriptors: null
-                        });
-                    }
-                });
-
-                if (feedbackItems.length === 0) {
-                    feedbackMessage.textContent = 'Please select feedback for at least one image.';
-                    feedbackMessage.style.color = 'red';
-                    return;
-                }
-
-                // Send feedback to server
-                fetch('/submit_feedback', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        query_descriptors: queryDescriptors,
-                        feedback_items: feedbackItems
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        feedbackMessage.textContent = 'Feedback submitted successfully! Updating results...';
-                        feedbackMessage.style.color = 'green';
-                        
-                        // Refresh results with new weights
-                        return fetch('/refresh_results', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                query_descriptors: queryDescriptors,
-                                weights: data.new_weights
-                            })
-                        });
-                    } else {
-                        throw new Error('Feedback submission failed');
-                    }
-                })
-                .then(response => response.json())
-                .then(newResults => {
-                    updateResults(newResults);
-                    feedbackMessage.textContent = 'Results updated with new weights!';
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    feedbackMessage.textContent = 'Error submitting feedback.';
-                    feedbackMessage.style.color = 'red';
-                });
-            });
+            resultsContainer.appendChild(imageCard);
         });
-    </script>
+    }
+
+    // Submit Feedback
+    submitButton.addEventListener('click', function() {
+        // Show loading state
+        feedbackMessage.textContent = 'Processing feedback...';
+        feedbackMessage.style.color = 'blue';
+        submitButton.disabled = true;
+
+        // Collect feedback for each image
+        const feedbackItems = Array.from(document.querySelectorAll('.image-card'))
+            .map(card => ({
+                image_name: card.dataset.imageName,
+                category: card.dataset.category,
+                feedback: card.querySelector('.feedback-dropdown').value
+            }));
+
+        // Send feedback to server
+        fetch('/submit_feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query_descriptors: queryDescriptors,
+                feedback_items: feedbackItems
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Update results with new similar images
+                updateResults(data.similar_images);
+
+                // Show success message
+                feedbackMessage.textContent = 'Feedback submitted successfully! Results updated.';
+                feedbackMessage.style.color = 'green';
+
+                // Log the new weights (for debugging)
+                console.log('Updated Weights:', data.new_weights);
+            } else {
+                // Show error message
+                feedbackMessage.textContent = 'Failed to submit feedback. Please try again.';
+                feedbackMessage.style.color = 'red';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            feedbackMessage.textContent = 'An error occurred. Please try again.';
+            feedbackMessage.style.color = 'red';
+        })
+        .finally(() => {
+            // Re-enable submit button
+            submitButton.disabled = false;
+        });
+    });
+});
+        </script>
 </body>
 </html>
