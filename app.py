@@ -33,7 +33,7 @@ feedback_manager = RelevanceFeedbackManager()
 
 def allowed_file(filename):
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):

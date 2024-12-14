@@ -92,7 +92,7 @@ class RelevanceFeedbackManager:
         # Normalize weights to ensure they sum to 1
         self._normalize_weights(updated_weights)
         
-        # Save updated weights
+        # Save updated weights in the json 
         self.save_weights(updated_weights)
         
         # Update current weights and history
@@ -125,7 +125,7 @@ class RelevanceFeedbackManager:
 
     def _normalize_weights(self, weights, min_threshold=0.05):
         """
-        Normalize weights to ensure they sum to 1, are non-negative,
+        Normalize weights to ensure they sum to 1, no negative ,
         and are above a minimum threshold.
         
         :param weights: Dictionary of feature weights to normalize
