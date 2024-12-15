@@ -43,7 +43,7 @@ def compute_similarity_score(query_descriptors, database_descriptors, weights=No
         with open(weights_json_path, 'r') as f:
             weights = json.load(f)
     
-    # Fallback default weights if neither weights nor weights_json_path are provided
+    # Fallback default weights if weights are not provided
     if weights is None:
         weights = {
             "histogram": 0.3,

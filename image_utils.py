@@ -70,4 +70,4 @@ def calculate_circularity(image_path):
         if perimeter > 0:
             circularity = 4 * np.pi * (area / (perimeter ** 2))
             return normalize([circularity])[0]
-    return 0  # If no contour is found
+    return 0  # no contour is found
